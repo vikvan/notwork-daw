@@ -22,6 +22,9 @@ public:
     int  addTrack(const QString& name, const QColor& color);
     void addEvent(int trackIndex, AudioEvent ev);
 
+    // Replaces the entire project state atomically. Used by ProjectIO.
+    void loadState(int sampleRate, std::vector<Track> newTracks);
+
     // Move an event to (possibly) another track and a new start position.
     // Emits `changed` asynchronously (queued) so the caller can safely be
     // a QGraphicsItem being dragged — the scene rebuild won't happen until

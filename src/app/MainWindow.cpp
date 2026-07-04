@@ -7,14 +7,19 @@
 #include "gui/TrackHeaderList.h"
 #include "gui/TransportBar.h"
 #include "model/Project.h"
+#include "model/ProjectIO.h"
 #include "model/Track.h"
 
 #include <QAction>
 #include <QDialog>
+#include <QFileDialog>
+#include <QFileInfo>
 #include <QKeySequence>
 #include <QMenuBar>
+#include <QMessageBox>
 #include <QScrollBar>
 #include <QSplitter>
+#include <QStandardPaths>
 #include <QStatusBar>
 #include <QVBoxLayout>
 #include <QWidget>
@@ -79,12 +84,28 @@ MainWindow::MainWindow(QWidget* parent)
     connect(timelineVBar, &QScrollBar::valueChanged, headerVBar,
             [headerVBar](int v){ if (headerVBar->value() != v) headerVBar->setValue(v); });
 
+    auto* openAction = new QAction("Open Project…", this);
+    openAction->setShortcut(QKeySequence::Open);
+    connect(openAction, &QAction::triggered, this, &MainWindow::openProject);
+
+    auto* saveAction = new QAction("Save Project", this);
+    saveAction->setShortcut(QKeySequence::Save);
+    connect(saveAction, &QAction::triggered, this, &MainWindow::saveProject);
+
+    auto* saveAsAction = new QAction("Save Project As…", this);
+    saveAsAction->setShortcut(QKeySequence::SaveAs);
+    connect(saveAsAction, &QAction::triggered, this, &MainWindow::saveProjectAs);
+
     auto* prefsAction = new QAction("Preferences…", this);
     prefsAction->setMenuRole(QAction::PreferencesRole);
     prefsAction->setShortcut(QKeySequence::Preferences);
     connect(prefsAction, &QAction::triggered, this, &MainWindow::openPreferences);
 
     auto* fileMenu = menuBar()->addMenu("File");
+    fileMenu->addAction(openAction);
+    fileMenu->addAction(saveAction);
+    fileMenu->addAction(saveAsAction);
+    fileMenu->addSeparator();
     fileMenu->addAction(prefsAction);
 
     connect(engine_.get(), &engine::AudioEngine::configurationChanged, this, [this]{
@@ -139,6 +160,58 @@ void MainWindow::openPreferences() {
             statusBar()->showMessage("Audio reconfigured", 2000);
         }
     }
+}
+
+void MainWindow::openProject() {
+    const QString dir = currentProjectPath_.isEmpty()
+        ? QStandardPaths::writableLocation(QStandardPaths::MusicLocation) + "/Notwork"
+        : QFileInfo(currentProjectPath_).absolutePath();
+    const QString path = QFileDialog::getOpenFileName(
+        this, "Open Project", dir, "Notwork Project (*.notwork);;All Files (*)");
+    if (path.isEmpty()) return;
+    loadFrom(path);
+}
+
+void MainWindow::saveProject() {
+    if (currentProjectPath_.isEmpty()) { saveProjectAs(); return; }
+    saveTo(currentProjectPath_);
+}
+
+void MainWindow::saveProjectAs() {
+    const QString dir = currentProjectPath_.isEmpty()
+        ? QStandardPaths::writableLocation(QStandardPaths::MusicLocation) + "/Notwork/untitled.notwork"
+        : currentProjectPath_;
+    QString path = QFileDialog::getSaveFileName(
+        this, "Save Project As", dir, "Notwork Project (*.notwork)");
+    if (path.isEmpty()) return;
+    if (!path.endsWith(".notwork", Qt::CaseInsensitive)) path += ".notwork";
+    if (saveTo(path)) {
+        currentProjectPath_ = path;
+        setWindowTitle(QString("Notwork — %1").arg(QFileInfo(path).completeBaseName()));
+    }
+}
+
+bool MainWindow::saveTo(const QString& path) {
+    QString err;
+    if (!model::ProjectIO::save(*project_, path, &err)) {
+        QMessageBox::warning(this, "Save failed", err);
+        return false;
+    }
+    statusBar()->showMessage(QString("Saved: %1").arg(path), 3000);
+    return true;
+}
+
+void MainWindow::loadFrom(const QString& path) {
+    engine_->stop();
+    QString err;
+    if (!model::ProjectIO::load(*project_, path, &err)) {
+        QMessageBox::warning(this, "Open failed", err);
+        return;
+    }
+    currentProjectPath_ = path;
+    setWindowTitle(QString("Notwork — %1").arg(QFileInfo(path).completeBaseName()));
+    engine_->rewind();
+    statusBar()->showMessage(QString("Loaded: %1").arg(path), 3000);
 }
 
 } // namespace notwork::app

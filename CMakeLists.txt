@@ -56,6 +56,8 @@ set(NOTWORK_SOURCES
     src/model/AudioEvent.h
     src/model/Project.cpp
     src/model/Project.h
+    src/model/ProjectIO.cpp
+    src/model/ProjectIO.h
     src/model/Track.h
 )
 

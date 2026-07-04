@@ -24,6 +24,12 @@ void Project::addEvent(int trackIndex, AudioEvent ev) {
     emit changed();
 }
 
+void Project::loadState(int sampleRate, std::vector<Track> newTracks) {
+    sampleRate_ = sampleRate;
+    tracks_ = std::move(newTracks);
+    emit changed();
+}
+
 void Project::moveEvent(int oldTrack, int oldIndex, int newTrack, int64_t newStartSamples) {
     if (oldTrack  < 0 || oldTrack  >= static_cast<int>(tracks_.size())) return;
     if (newTrack  < 0 || newTrack  >= static_cast<int>(tracks_.size())) return;

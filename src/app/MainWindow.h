@@ -20,12 +20,20 @@ private:
     void openPreferences();
     void seedDemoProject();
 
+    void openProject();
+    void saveProject();
+    void saveProjectAs();
+    bool saveTo(const QString& path);
+    void loadFrom(const QString& path);
+
     std::unique_ptr<engine::AudioEngine> engine_;
     std::unique_ptr<model::Project>      project_;
 
     gui::TrackHeaderList* headerList_ = nullptr;
     gui::TimelineView*    timelineView_ = nullptr;
     gui::TimelineScene*   timelineScene_ = nullptr;
+
+    QString currentProjectPath_;
 };
 
 } // namespace notwork::app
