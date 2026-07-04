@@ -38,7 +38,11 @@ void Project::moveEvent(int oldTrack, int oldIndex, int newTrack, int64_t newSta
         srcEvents.erase(srcEvents.begin() + oldIndex);
         tracks_[newTrack].events.push_back(std::move(ev));
     }
-    QMetaObject::invokeMethod(this, "notifyChanged", Qt::QueuedConnection);
+
+    // Queued emit: keeps the ClipItem being dragged alive through
+    // mouseReleaseEvent — the scene rebuild that follows would delete it.
+    QMetaObject::invokeMethod(this, [this]{ emit changed(); },
+                              Qt::QueuedConnection);
 }
 
 } // namespace notwork::model

@@ -1,7 +1,9 @@
 #include "engine/AudioEngine.h"
 
 #include "app/Settings.h"
+#include "engine/AudioClip.h"
 #include "engine/DeviceList.h"
+#include "engine/PlaybackScene.h"
 #include "engine/Recorder.h"
 #include "model/AudioEvent.h"
 #include "model/Project.h"
@@ -14,17 +16,57 @@
 #include <QFileInfo>
 #include <QStandardPaths>
 
+#include <algorithm>
 #include <cstring>
 
 namespace notwork::engine {
 
 AudioEngine::AudioEngine(QObject* parent)
-    : QObject(parent), recorder_(std::make_unique<Recorder>()) {
+    : QObject(parent),
+      recorder_(std::make_unique<Recorder>()),
+      scene_(std::make_shared<const PlaybackScene>()) {
     reconfigure();
 }
 
 AudioEngine::~AudioEngine() {
     closeStream();
+}
+
+void AudioEngine::setProject(notwork::model::Project* project) {
+    project_ = project;
+    rebuildPlaybackScene();
+}
+
+void AudioEngine::rebuildPlaybackScene() {
+    auto next = std::make_shared<PlaybackScene>();
+    if (project_) {
+        bool anySolo = false;
+        for (const auto& t : project_->tracks()) {
+            if (t.solo) { anySolo = true; break; }
+        }
+        const auto& tracks = project_->tracks();
+        for (const auto& t : tracks) {
+            if (t.mute)                continue;
+            if (anySolo && !t.solo)    continue;
+
+            for (const auto& e : t.events) {
+                if (e.filePath.isEmpty() || e.lengthSamples <= 0) continue;
+                auto clip = AudioClip::loadCached(e.filePath);
+                if (!clip || !clip->valid()) continue;
+
+                PlaybackClip pc;
+                pc.clip          = clip;
+                pc.outChannel    = t.outCh;
+                pc.startSample   = e.startSamples;
+                pc.offsetSamples = e.offsetSamples;
+                pc.lengthSamples = e.lengthSamples;
+                next->clips.push_back(std::move(pc));
+            }
+        }
+    }
+    std::shared_ptr<const PlaybackScene> published(std::move(next));
+    std::lock_guard<std::mutex> lk(sceneMu_);
+    scene_.swap(published);
 }
 
 void AudioEngine::closeStream() {
@@ -116,6 +158,9 @@ void AudioEngine::startPlayback() {
 }
 
 void AudioEngine::startRecording() {
+    if (state_.load(std::memory_order_acquire) == TransportState::Recording) {
+        return; // already recording — ignore redundant clicks
+    }
     if (!project_) {
         state_.store(TransportState::Playing, std::memory_order_release);
         return;
@@ -189,14 +234,52 @@ int AudioEngine::paCallback(const void* input, void* output,
 }
 
 int AudioEngine::onCallback(const float* in, float* out, unsigned long frames) {
-    // Silence output for now — mixing lands in a later step.
     std::memset(out, 0, sizeof(float) * frames * static_cast<size_t>(outChannels_));
 
     const TransportState st = state_.load(std::memory_order_acquire);
+
     if (st == TransportState::Recording && in && recorder_) {
         recorder_->pushInterleaved(in, frames);
     }
+
     if (st != TransportState::Stopped) {
+        const int64_t ph = playhead_.load(std::memory_order_acquire);
+        const int64_t bufStart = ph;
+        const int64_t bufEnd   = ph + static_cast<int64_t>(frames);
+
+        std::shared_ptr<const PlaybackScene> scene;
+        {
+            std::lock_guard<std::mutex> lk(sceneMu_);
+            scene = scene_;
+        }
+        if (scene) {
+            for (const auto& c : scene->clips) {
+                if (!c.clip) continue;
+                const int outCh = c.outChannel;
+                if (outCh < 0 || outCh >= outChannels_) continue;
+
+                const int64_t clipStart = c.startSample;
+                const int64_t clipEnd   = c.startSample + c.lengthSamples;
+                const int64_t overlapStart = std::max(clipStart, bufStart);
+                const int64_t overlapEnd   = std::min(clipEnd,   bufEnd);
+                if (overlapStart >= overlapEnd) continue;
+
+                const int64_t outOffset  = overlapStart - bufStart;
+                const int64_t srcOffset  = c.offsetSamples + (overlapStart - clipStart);
+                const int64_t n          = overlapEnd - overlapStart;
+                const int64_t clipFrames = c.clip->frames();
+                const int     clipChans  = c.clip->channels();
+                const auto&   data       = c.clip->data();
+
+                for (int64_t f = 0; f < n; ++f) {
+                    const int64_t s = srcOffset + f;
+                    if (s < 0 || s >= clipFrames) continue;
+                    const float sample = data[static_cast<std::size_t>(s) * clipChans];
+                    out[(outOffset + f) * outChannels_ + outCh] += sample;
+                }
+            }
+        }
+
         playhead_.fetch_add(static_cast<int64_t>(frames), std::memory_order_acq_rel);
     }
     return paContinue;

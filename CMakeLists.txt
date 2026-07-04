@@ -33,6 +33,7 @@ set(NOTWORK_SOURCES
     src/engine/AudioEngine.h
     src/engine/DeviceList.cpp
     src/engine/DeviceList.h
+    src/engine/PlaybackScene.h
     src/engine/PortAudioSession.cpp
     src/engine/PortAudioSession.h
     src/engine/Recorder.cpp

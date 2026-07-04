@@ -6,6 +6,7 @@
 #include <atomic>
 #include <cstdint>
 #include <memory>
+#include <mutex>
 
 #include <portaudio.h>
 
@@ -14,6 +15,7 @@ namespace notwork::model  { class Project; }
 namespace notwork::engine {
 
 class Recorder;
+struct PlaybackScene;
 
 enum class TransportState : int {
     Stopped   = 0,
@@ -33,7 +35,12 @@ public:
     // Open (or re-open) the stream using current Settings. Returns true on success.
     bool reconfigure();
 
-    void setProject(notwork::model::Project* project) { project_ = project; }
+    void setProject(notwork::model::Project* project);
+
+    // Rebuilds the immutable playback snapshot from the current project
+    // and atomically publishes it to the RT thread. Called automatically
+    // on Project::changed.
+    void rebuildPlaybackScene();
 
     void startPlayback();
     void startRecording();
@@ -72,6 +79,12 @@ private:
 
     notwork::model::Project*    project_ = nullptr;
     std::unique_ptr<Recorder>   recorder_;
+
+    // GUI thread swaps this under sceneMu_. RT callback briefly locks to
+    // copy the shared_ptr (cheap, uncontended in practice) then reads
+    // without the lock.
+    mutable std::mutex sceneMu_;
+    std::shared_ptr<const PlaybackScene> scene_;
 
     QString lastError_;
 };

@@ -91,6 +91,8 @@ MainWindow::MainWindow(QWidget* parent)
         project_->setSampleRate(engine_->sampleRate());
         headerList_->setChannels(engine_->inputChannels(), engine_->outputChannels());
     });
+    connect(project_.get(), &model::Project::changed, engine_.get(),
+            &engine::AudioEngine::rebuildPlaybackScene);
 
     if (!engine_->lastError().isEmpty()) {
         statusBar()->showMessage(engine_->lastError());

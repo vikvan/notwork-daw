@@ -32,6 +32,16 @@ bool Recorder::start(int sampleRate,
                      const std::vector<ArmedTrack>& armed,
                      unsigned long maxFramesPerCallback,
                      const QString& takesDir) {
+    // Defensive: if a previous session left the writer thread alive for any
+    // reason, join it before touching the thread handle. Assigning to a
+    // joinable std::thread aborts via std::terminate.
+    if (writer_.joinable()) {
+        running_.store(false, std::memory_order_release);
+        writer_.join();
+    }
+    for (auto& rt : tracks_) {
+        if (rt->snd) { sf_close(rt->snd); rt->snd = nullptr; }
+    }
     tracks_.clear();
     sampleRate_    = sampleRate;
     inputChannels_ = inputChannels;
