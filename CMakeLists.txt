@@ -27,6 +27,8 @@ set(NOTWORK_SOURCES
     src/app/Settings.h
     src/app/SettingsDialog.cpp
     src/app/SettingsDialog.h
+    src/engine/AudioClip.cpp
+    src/engine/AudioClip.h
     src/engine/AudioEngine.cpp
     src/engine/AudioEngine.h
     src/engine/DeviceList.cpp

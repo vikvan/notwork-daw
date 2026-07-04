@@ -1,5 +1,6 @@
 #include "gui/TimelineScene.h"
 
+#include "engine/AudioClip.h"
 #include "engine/AudioEngine.h"
 #include "gui/ClipItem.h"
 #include "model/Project.h"
@@ -67,10 +68,15 @@ void TimelineScene::rebuildClips() {
             const qreal w = ev.lengthSamples / samplesPerPixel_;
             const qreal y = rowY(static_cast<int>(ti)) + 4;
             const qreal h = kTrackRowHeight - 8;
+            auto audio = ev.filePath.isEmpty()
+                             ? std::shared_ptr<const notwork::engine::AudioClip>()
+                             : notwork::engine::AudioClip::loadCached(ev.filePath);
+
             auto* clip = new ClipItem(this, project_,
                                       static_cast<int>(ti),
                                       static_cast<int>(ei),
-                                      w, h, t.color, ev.name);
+                                      w, h, t.color, ev.name,
+                                      audio, ev.offsetSamples);
             clip->setPos(x, y);
             addItem(clip);
         }
