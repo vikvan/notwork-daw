@@ -5,6 +5,8 @@
 #include <memory>
 
 namespace notwork::engine { class AudioEngine; }
+namespace notwork::model  { class Project;     }
+namespace notwork::gui    { class TrackHeaderList; class TimelineView; class TimelineScene; }
 
 namespace notwork::app {
 
@@ -16,8 +18,14 @@ public:
 
 private:
     void openPreferences();
+    void seedDemoProject();
 
     std::unique_ptr<engine::AudioEngine> engine_;
+    std::unique_ptr<model::Project>      project_;
+
+    gui::TrackHeaderList* headerList_ = nullptr;
+    gui::TimelineView*    timelineView_ = nullptr;
+    gui::TimelineScene*   timelineScene_ = nullptr;
 };
 
 } // namespace notwork::app

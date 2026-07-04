@@ -33,10 +33,24 @@ set(NOTWORK_SOURCES
     src/engine/DeviceList.h
     src/engine/PortAudioSession.cpp
     src/engine/PortAudioSession.h
+    src/gui/ClipItem.cpp
+    src/gui/ClipItem.h
     src/gui/Style.cpp
     src/gui/Style.h
+    src/gui/TimelineScene.cpp
+    src/gui/TimelineScene.h
+    src/gui/TimelineView.cpp
+    src/gui/TimelineView.h
+    src/gui/TrackHeader.cpp
+    src/gui/TrackHeader.h
+    src/gui/TrackHeaderList.cpp
+    src/gui/TrackHeaderList.h
     src/gui/TransportBar.cpp
     src/gui/TransportBar.h
+    src/model/AudioEvent.h
+    src/model/Project.cpp
+    src/model/Project.h
+    src/model/Track.h
 )
 
 qt_add_executable(notwork MACOSX_BUNDLE ${NOTWORK_SOURCES})

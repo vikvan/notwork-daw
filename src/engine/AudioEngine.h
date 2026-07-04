@@ -35,7 +35,9 @@ public:
 
     TransportState state() const { return state_.load(std::memory_order_acquire); }
     int64_t        playheadSamples() const { return playhead_.load(std::memory_order_acquire); }
-    int            sampleRate() const { return sampleRate_; }
+    int            sampleRate()     const { return sampleRate_; }
+    int            inputChannels()  const { return inChannels_; }
+    int            outputChannels() const { return outChannels_; }
 
     QString lastError() const { return lastError_; }
 
