@@ -34,12 +34,16 @@ void TimelineScene::rebuildClips() {
     const auto& tracks = project_->tracks();
     for (size_t ti = 0; ti < tracks.size(); ++ti) {
         const auto& t = tracks[ti];
-        for (const auto& ev : t.events) {
+        for (size_t ei = 0; ei < t.events.size(); ++ei) {
+            const auto& ev = t.events[ei];
             const qreal x = ev.startSamples  / samplesPerPixel_;
             const qreal w = ev.lengthSamples / samplesPerPixel_;
             const qreal y = rowY(static_cast<int>(ti)) + 4;
             const qreal h = kTrackRowHeight - 8;
-            auto* clip = new ClipItem(w, h, t.color, ev.name);
+            auto* clip = new ClipItem(this, project_,
+                                      static_cast<int>(ti),
+                                      static_cast<int>(ei),
+                                      w, h, t.color, ev.name);
             clip->setPos(x, y);
             addItem(clip);
         }

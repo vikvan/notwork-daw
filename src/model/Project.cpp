@@ -24,4 +24,21 @@ void Project::addEvent(int trackIndex, AudioEvent ev) {
     emit changed();
 }
 
+void Project::moveEvent(int oldTrack, int oldIndex, int newTrack, int64_t newStartSamples) {
+    if (oldTrack  < 0 || oldTrack  >= static_cast<int>(tracks_.size())) return;
+    if (newTrack  < 0 || newTrack  >= static_cast<int>(tracks_.size())) return;
+    auto& srcEvents = tracks_[oldTrack].events;
+    if (oldIndex < 0 || oldIndex >= static_cast<int>(srcEvents.size())) return;
+
+    if (oldTrack == newTrack) {
+        srcEvents[oldIndex].startSamples = std::max<int64_t>(0, newStartSamples);
+    } else {
+        AudioEvent ev = std::move(srcEvents[oldIndex]);
+        ev.startSamples = std::max<int64_t>(0, newStartSamples);
+        srcEvents.erase(srcEvents.begin() + oldIndex);
+        tracks_[newTrack].events.push_back(std::move(ev));
+    }
+    QMetaObject::invokeMethod(this, "notifyChanged", Qt::QueuedConnection);
+}
+
 } // namespace notwork::model

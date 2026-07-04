@@ -22,6 +22,12 @@ public:
     int  addTrack(const QString& name, const QColor& color);
     void addEvent(int trackIndex, AudioEvent ev);
 
+    // Move an event to (possibly) another track and a new start position.
+    // Emits `changed` asynchronously (queued) so the caller can safely be
+    // a QGraphicsItem being dragged — the scene rebuild won't happen until
+    // control returns to the event loop.
+    void moveEvent(int oldTrack, int oldIndex, int newTrack, int64_t newStartSamples);
+
     // GUI-triggered mutations use this to notify listeners.
     void notifyChanged() { emit changed(); }
 
