@@ -29,6 +29,7 @@ MainWindow::MainWindow(QWidget* parent)
 
     project_->setSampleRate(engine_->sampleRate());
     seedDemoProject();
+    engine_->setProject(project_.get());
 
     auto* transport = new gui::TransportBar(engine_.get(), this);
 
@@ -39,7 +40,7 @@ MainWindow::MainWindow(QWidget* parent)
     headerList_->setMinimumWidth(240);
     headerList_->setMaximumWidth(320);
 
-    timelineScene_ = new gui::TimelineScene(project_.get(), this);
+    timelineScene_ = new gui::TimelineScene(project_.get(), engine_.get(), this);
     timelineView_  = new gui::TimelineView(timelineScene_, this);
 
     auto* leftSpacer = new QWidget;

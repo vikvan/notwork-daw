@@ -2,16 +2,24 @@
 
 #include "app/Settings.h"
 #include "engine/DeviceList.h"
+#include "engine/Recorder.h"
+#include "model/AudioEvent.h"
+#include "model/Project.h"
+#include "model/Track.h"
 
 #include <portaudio.h>
 
 #include <QDebug>
+#include <QDir>
+#include <QFileInfo>
+#include <QStandardPaths>
 
 #include <cstring>
 
 namespace notwork::engine {
 
-AudioEngine::AudioEngine(QObject* parent) : QObject(parent) {
+AudioEngine::AudioEngine(QObject* parent)
+    : QObject(parent), recorder_(std::make_unique<Recorder>()) {
     reconfigure();
 }
 
@@ -104,14 +112,66 @@ bool AudioEngine::reconfigure() {
 }
 
 void AudioEngine::startPlayback() {
-    state_.store(TransportState::Playing,  std::memory_order_release);
+    state_.store(TransportState::Playing, std::memory_order_release);
 }
+
 void AudioEngine::startRecording() {
+    if (!project_) {
+        state_.store(TransportState::Playing, std::memory_order_release);
+        return;
+    }
+
+    std::vector<Recorder::ArmedTrack> armed;
+    for (int i = 0; i < static_cast<int>(project_->tracks().size()); ++i) {
+        const auto& t = project_->track(i);
+        if (t.armed && t.inCh >= 0 && t.inCh < inChannels_) {
+            armed.push_back({i, t.inCh});
+        }
+    }
+
+    if (armed.empty()) {
+        // Nothing to record — behave like plain playback.
+        state_.store(TransportState::Playing, std::memory_order_release);
+        return;
+    }
+
+    const QString base = QStandardPaths::writableLocation(QStandardPaths::MusicLocation);
+    const QString takesDir = base + "/Notwork/untitled/audio";
+    const int64_t startSample = playhead_.load(std::memory_order_acquire);
+
+    if (!recorder_->start(sampleRate_, inChannels_,
+                          startSample, armed,
+                          static_cast<unsigned long>(bufferSize_),
+                          takesDir)) {
+        qWarning() << "Recorder::start failed";
+        state_.store(TransportState::Playing, std::memory_order_release);
+        return;
+    }
     state_.store(TransportState::Recording, std::memory_order_release);
 }
+
 void AudioEngine::stop() {
-    state_.store(TransportState::Stopped,   std::memory_order_release);
+    const TransportState prev =
+        state_.exchange(TransportState::Stopped, std::memory_order_acq_rel);
+
+    if (prev == TransportState::Recording && recorder_) {
+        // Give the RT thread a beat to see the state change and stop pushing.
+        Pa_Sleep(20);
+        const auto results = recorder_->stop();
+        if (project_) {
+            for (const auto& r : results) {
+                if (r.lengthSamples <= 0) continue;
+                model::AudioEvent ev;
+                ev.name          = QFileInfo(r.filePath).completeBaseName();
+                ev.filePath      = r.filePath;
+                ev.startSamples  = r.startSample;
+                ev.lengthSamples = r.lengthSamples;
+                project_->addEvent(r.trackIndex, ev);
+            }
+        }
+    }
 }
+
 void AudioEngine::rewind() {
     stop();
     playhead_.store(0, std::memory_order_release);
@@ -128,11 +188,15 @@ int AudioEngine::paCallback(const void* input, void* output,
         frameCount);
 }
 
-int AudioEngine::onCallback(const float* /*in*/, float* out, unsigned long frames) {
-    // MVP step 3: no mixing yet, just silence.
+int AudioEngine::onCallback(const float* in, float* out, unsigned long frames) {
+    // Silence output for now — mixing lands in a later step.
     std::memset(out, 0, sizeof(float) * frames * static_cast<size_t>(outChannels_));
 
-    if (state_.load(std::memory_order_acquire) != TransportState::Stopped) {
+    const TransportState st = state_.load(std::memory_order_acquire);
+    if (st == TransportState::Recording && in && recorder_) {
+        recorder_->pushInterleaved(in, frames);
+    }
+    if (st != TransportState::Stopped) {
         playhead_.fetch_add(static_cast<int64_t>(frames), std::memory_order_acq_rel);
     }
     return paContinue;

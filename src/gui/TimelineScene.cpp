@@ -1,27 +1,54 @@
 #include "gui/TimelineScene.h"
 
+#include "engine/AudioEngine.h"
 #include "gui/ClipItem.h"
 #include "model/Project.h"
 #include "model/Track.h"
 
+#include <QGraphicsLineItem>
 #include <QPainter>
+#include <QPen>
+#include <QTimer>
 
 namespace notwork::gui {
 
-TimelineScene::TimelineScene(notwork::model::Project* project, QObject* parent)
-    : QGraphicsScene(parent), project_(project) {
+TimelineScene::TimelineScene(notwork::model::Project* project,
+                             notwork::engine::AudioEngine* engine,
+                             QObject* parent)
+    : QGraphicsScene(parent), project_(project), engine_(engine) {
     const int sr        = project_->sampleRate();
     const qreal totalPx = (sr * kSceneDurationSeconds) / samplesPerPixel_;
     const qreal totalH  = kRulerHeight + kTrackRowHeight * static_cast<qreal>(project_->tracks().size());
     setSceneRect(0, 0, totalPx, totalH);
 
+    playheadItem_ = new QGraphicsLineItem(0, 0, 0, totalH);
+    QPen pen(QColor(230, 60, 60));
+    pen.setWidthF(1.5);
+    pen.setCosmetic(true);
+    playheadItem_->setPen(pen);
+    playheadItem_->setZValue(1000);
+    addItem(playheadItem_);
+
     connect(project_, &notwork::model::Project::changed, this, [this]{
         const qreal h = kRulerHeight + kTrackRowHeight * static_cast<qreal>(project_->tracks().size());
         setSceneRect(sceneRect().x(), sceneRect().y(), sceneRect().width(), h);
+        playheadItem_->setLine(0, 0, 0, h);
         rebuildClips();
     });
 
+    playheadTimer_ = new QTimer(this);
+    playheadTimer_->setInterval(33);
+    connect(playheadTimer_, &QTimer::timeout, this, &TimelineScene::updatePlayhead);
+    playheadTimer_->start();
+
     rebuildClips();
+    updatePlayhead();
+}
+
+void TimelineScene::updatePlayhead() {
+    if (!engine_ || !playheadItem_) return;
+    const qreal x = engine_->playheadSamples() / samplesPerPixel_;
+    playheadItem_->setPos(x, 0);
 }
 
 void TimelineScene::rebuildClips() {

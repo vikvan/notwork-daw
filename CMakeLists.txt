@@ -33,6 +33,9 @@ set(NOTWORK_SOURCES
     src/engine/DeviceList.h
     src/engine/PortAudioSession.cpp
     src/engine/PortAudioSession.h
+    src/engine/Recorder.cpp
+    src/engine/Recorder.h
+    src/engine/RingBuffer.h
     src/gui/ClipItem.cpp
     src/gui/ClipItem.h
     src/gui/Style.cpp
@@ -70,4 +73,5 @@ set_target_properties(notwork PROPERTIES
     MACOSX_BUNDLE_GUI_IDENTIFIER "com.notwork.Notwork"
     MACOSX_BUNDLE_BUNDLE_VERSION "0.1.0"
     MACOSX_BUNDLE_SHORT_VERSION_STRING "0.1"
+    MACOSX_BUNDLE_INFO_PLIST "${CMAKE_SOURCE_DIR}/Info.plist.in"
 )

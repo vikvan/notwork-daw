@@ -5,10 +5,15 @@
 
 #include <atomic>
 #include <cstdint>
+#include <memory>
 
 #include <portaudio.h>
 
+namespace notwork::model  { class Project; }
+
 namespace notwork::engine {
+
+class Recorder;
 
 enum class TransportState : int {
     Stopped   = 0,
@@ -27,6 +32,8 @@ public:
 
     // Open (or re-open) the stream using current Settings. Returns true on success.
     bool reconfigure();
+
+    void setProject(notwork::model::Project* project) { project_ = project; }
 
     void startPlayback();
     void startRecording();
@@ -62,6 +69,9 @@ private:
 
     std::atomic<TransportState> state_{TransportState::Stopped};
     std::atomic<int64_t>        playhead_{0};
+
+    notwork::model::Project*    project_ = nullptr;
+    std::unique_ptr<Recorder>   recorder_;
 
     QString lastError_;
 };

@@ -2,7 +2,11 @@
 
 #include <QGraphicsScene>
 
-namespace notwork::model { class Project; }
+class QGraphicsLineItem;
+class QTimer;
+
+namespace notwork::engine { class AudioEngine; }
+namespace notwork::model  { class Project;     }
 
 namespace notwork::gui {
 
@@ -14,7 +18,9 @@ public:
     static constexpr qreal kDefaultSamplesPerPixel = 1024.0;
     static constexpr qreal kSceneDurationSeconds  = 90.0;
 
-    explicit TimelineScene(notwork::model::Project* project, QObject* parent = nullptr);
+    TimelineScene(notwork::model::Project* project,
+                  notwork::engine::AudioEngine* engine,
+                  QObject* parent = nullptr);
 
     qreal samplesPerPixel() const { return samplesPerPixel_; }
     qreal rowY(int trackIndex) const { return kRulerHeight + trackIndex * kTrackRowHeight; }
@@ -24,9 +30,14 @@ protected:
 
 private:
     void rebuildClips();
+    void updatePlayhead();
 
-    notwork::model::Project* project_;
+    notwork::model::Project*      project_;
+    notwork::engine::AudioEngine* engine_;
     qreal samplesPerPixel_ = kDefaultSamplesPerPixel;
+
+    QGraphicsLineItem* playheadItem_ = nullptr;
+    QTimer*            playheadTimer_ = nullptr;
 };
 
 } // namespace notwork::gui
